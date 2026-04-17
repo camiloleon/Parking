@@ -190,7 +190,7 @@ export function getResumenFinanciero() {
   const pagadosCount   = ocupados.filter(p => p.pagado).length;
   const morosos = ocupados.filter(p => {
     if (p.pagado) return false;
-    const v = calcularVencimiento(p.fechaInicio, p.duracion);
+    const v = calcularVencimiento(p.fechaInicio, p.duracion, p.fechaUltimoPago || null);
     return v && v.vencido;
   });
   return { ocupados, totalEsperado, totalCobrado, totalPendiente, pagadosCount, morosos };
@@ -213,7 +213,7 @@ export function getPuestosActualizados() {
     }
     // Auto-mora: si ocupado, no pagado y fecha vencida
     if (p.estado === 'ocupado' && p.fechaInicio && !p.pagado) {
-      const v = calcularVencimiento(p.fechaInicio, p.duracion);
+      const v = calcularVencimiento(p.fechaInicio, p.duracion, p.fechaUltimoPago || null);
       if (v && v.vencido) {
         changed = true;
         return { ...p, estado: 'mora' };
@@ -231,29 +231,25 @@ export function getPuestosActualizados() {
 }
 
 // Calcula la próxima fecha de pago y días restantes
+// Base: si hay fechaUltimoPago se cuenta desde ahí, si no desde fechaInicio (primer mes)
 // Retorna { fechaPago: Date, diasRestantes: number, vencido: boolean }
-export function calcularVencimiento(fechaInicio, duracion) {
+export function calcularVencimiento(fechaInicio, duracion, fechaUltimoPago = null) {
   if (!fechaInicio) return null;
 
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
-  const inicio = new Date(fechaInicio + 'T00:00:00');
+
+  // La base es el último pago o el inicio del contrato
+  const baseStr = fechaUltimoPago || fechaInicio;
+  const base = new Date(baseStr + 'T00:00:00');
 
   let fechaPago;
-
   if (duracion === 'mes') {
-    // Mismo día del mes, mes actual o siguiente
-    fechaPago = new Date(hoy.getFullYear(), hoy.getMonth(), inicio.getDate());
-    if (fechaPago < hoy) {
-      fechaPago = new Date(hoy.getFullYear(), hoy.getMonth() + 1, inicio.getDate());
-    }
+    fechaPago = new Date(base);
+    fechaPago.setMonth(fechaPago.getMonth() + 1);
   } else {
-    // Por día: vence al día siguiente de inicio, luego cada día
-    fechaPago = new Date(inicio);
+    fechaPago = new Date(base);
     fechaPago.setDate(fechaPago.getDate() + 1);
-    while (fechaPago < hoy) {
-      fechaPago.setDate(fechaPago.getDate() + 1);
-    }
   }
 
   const diff = Math.round((fechaPago - hoy) / (1000 * 60 * 60 * 24));

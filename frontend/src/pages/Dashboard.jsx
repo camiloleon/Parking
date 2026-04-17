@@ -45,8 +45,9 @@ export default function Dashboard() {
       tipo:        editando.tipo,
       duracion:    editando.duracion,
       precio:      Number(editando.precio),
-      // Limpiar pagado si se vacía el puesto
-      pagado:      tieneCliente ? editando.pagado : false,
+      fechaUltimoPago: tieneCliente ? (editando.fechaUltimoPago || '') : '',
+      // pagado = true solo si hay fecha de último pago
+      pagado:      tieneCliente ? !!editando.fechaUltimoPago : false,
       historialPagos: tieneCliente ? editando.historialPagos : [],
     });
     setPuestos(nuevos);
@@ -194,6 +195,34 @@ export default function Dashboard() {
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500"
               />
             </div>
+
+            {/* Gestión de pago */}
+            {editando.nombre && (
+              <div className="bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-3 flex flex-col gap-2">
+                <p className="text-xs text-gray-500 uppercase tracking-widest">Úcimo pago registrado</p>
+                <div className="flex gap-2 items-center">
+                  <input type="date" value={editando.fechaUltimoPago || ''}
+                    onChange={e => setEditando(ed => ({
+                      ...ed,
+                      fechaUltimoPago: e.target.value,
+                      pagado: !!e.target.value,
+                    }))}
+                    className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const hoy = new Date().toISOString().slice(0,10);
+                      setEditando(ed => ({ ...ed, fechaUltimoPago: hoy, pagado: true }));
+                    }}
+                    className="text-xs px-2 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg hover:bg-green-500/40 font-semibold whitespace-nowrap"
+                  >
+                    Hoy
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-600">Deja vacío si aún no ha pagado. Al guardar se recalcula el estado automáticamente.</p>
+              </div>
+            )}
 
             {/* QR de cámara */}
             <div>

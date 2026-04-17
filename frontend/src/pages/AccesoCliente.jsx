@@ -63,7 +63,7 @@ export default function AccesoCliente() {
   // --- Vista de datos del cliente ---
   if (puesto) {
     const alDia = puesto.pagado === true;
-    const venc = calcularVencimiento(puesto.fechaInicio, puesto.duracion);
+    const venc = calcularVencimiento(puesto.fechaInicio, puesto.duracion, puesto.fechaUltimoPago || null);
     const diasRestantes = venc?.diasRestantes ?? null;
 
     return (
