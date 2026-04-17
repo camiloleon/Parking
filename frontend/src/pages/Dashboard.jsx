@@ -62,7 +62,14 @@ export default function Dashboard() {
   }
 
   // Link de acceso del cliente (placa + últimos 4 de cédula)
-  const linkAcceso = `${window.location.origin}/acceso`;
+  const linkAcceso = `${window.location.origin}${window.location.pathname.replace(/\/$/, '')}/#/acceso`;
+  const [copiado, setCopiado] = useState(false);
+  function copiarLink() {
+    navigator.clipboard.writeText(linkAcceso).then(() => {
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    });
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 p-4">
@@ -205,10 +212,19 @@ export default function Dashboard() {
 
             {/* Link de acceso para el cliente */}
             {editando.cedula && (
-              <div className="bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-2">
-                <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Link de acceso del cliente</p>
-                <p className="text-xs text-green-400 font-mono break-all">{linkAcceso}</p>
-                <p className="text-[10px] text-gray-600 mt-1">
+              <div className="bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-2 flex flex-col gap-2">
+                <p className="text-[10px] text-gray-500 uppercase tracking-widest">Link de acceso del cliente</p>
+                <a href={linkAcceso} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-green-400 font-mono break-all underline hover:text-green-300">
+                  {linkAcceso}
+                </a>
+                <button onClick={copiarLink}
+                  className={`text-xs py-1.5 rounded-lg font-semibold transition-colors ${
+                    copiado ? 'bg-green-500 text-black' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}>
+                  {copiado ? ' ¡Copiado!' : ' Copiar link'}
+                </button>
+                <p className="text-[10px] text-gray-600">
                   Código: últimos 4 dígitos de la cédula  <span className="font-mono text-yellow-600">{editando.cedula.replace(/\D/g,'').slice(-4) || '----'}</span>
                 </p>
               </div>
