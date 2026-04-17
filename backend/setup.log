@@ -1,0 +1,26 @@
+Login OK
+clientes: False {"data":{"name":{"code":"validation_collection_name_exists","message":"Collection name must be unique (case insensitive)."}},"message":"Failed to create collection.","status":400}
+
+puestos: True {"id":"pbc_3950087392","listRule":"","viewRule":"","createRule":"","updateRule":"","deleteRule":"","name":"puestos","type":"base","fields":[{"autogeneratePattern":"[a-z0-9]{15}","hidden":false,"id":"text3208210256","max":15,"min":15,"name":"id","pattern":"^[a-z0-9]+$","presentable":false,"primaryKey":true,"required":true,"system":true,"type":"text"},{"hidden":false,"id":"number4116373918","max":20,"min":1,"name":"numero","onlyInt":false,"presentable":false,"required":true,"system":false,"type":"number"},{"autogeneratePattern":"","hidden":false,"id":"text643686883","max":0,"min":0,"name":"estado","pattern":"","presentable":false,"primaryKey":false,"required":true,"system":false,"type":"text"},{"autogeneratePattern":"","hidden":false,"id":"text1573978710","max":0,"min":0,"name":"link_camara","pattern":"","presentable":false,"primaryKey":false,"required":false,"system":false,"type":"text"},{"autogeneratePattern":"","hidden":false,"id":"text3732098641","max":0,"min":0,"name":"cliente_id","pattern":"","presentable":false,"primaryKey":false,"required":false,"system":false,"type":"text"}],"indexes":[],"created":"2026-04-17 05:46:09.951Z","updated":"2026-04-17 05:46:09.951Z","system":false}
+
+puesto 1 True
+puesto 2 True
+puesto 3 True
+puesto 4 True
+puesto 5 True
+puesto 6 True
+puesto 7 True
+puesto 8 True
+puesto 9 True
+puesto 10 True
+puesto 11 True
+puesto 12 True
+puesto 13 True
+puesto 14 True
+puesto 15 True
+puesto 16 True
+puesto 17 True
+puesto 18 True
+puesto 19 True
+puesto 20 True
+DONE
