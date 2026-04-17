@@ -61,9 +61,10 @@ export default function Dashboard() {
     reader.readAsDataURL(file);
   }
 
-  // Link de acceso del cliente (placa + últimos 4 de cédula)
-  const linkAcceso = `${window.location.origin}${window.location.pathname.replace(/\/$/, '')}/#/acceso`;
+  // Link de acceso del cliente — usa BASE_URL de Vite (funciona en dev y en /Parking/)
+  const linkAcceso = `${window.location.origin}${import.meta.env.BASE_URL}#/acceso`;
   const [copiado, setCopiado] = useState(false);
+  const [compartidoOk, setCompartidoOk] = useState(false);
   function copiarLink() {
     navigator.clipboard.writeText(linkAcceso).then(() => {
       setCopiado(true);
@@ -212,21 +213,46 @@ export default function Dashboard() {
 
             {/* Link de acceso para el cliente */}
             {editando.cedula && (
-              <div className="bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-2 flex flex-col gap-2">
+              <div className="bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-3 flex flex-col gap-2">
                 <p className="text-[10px] text-gray-500 uppercase tracking-widest">Link de acceso del cliente</p>
                 <a href={linkAcceso} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-green-400 font-mono break-all underline hover:text-green-300">
+                  className="text-xs text-green-400 font-mono break-all underline underline-offset-2 hover:text-green-300 cursor-pointer">
                   {linkAcceso}
                 </a>
-                <button onClick={copiarLink}
-                  className={`text-xs py-1.5 rounded-lg font-semibold transition-colors ${
-                    copiado ? 'bg-green-500 text-black' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }`}>
-                  {copiado ? ' ¡Copiado!' : ' Copiar link'}
-                </button>
-                <p className="text-[10px] text-gray-600">
-                  Código: últimos 4 dígitos de la cédula  <span className="font-mono text-yellow-600">{editando.cedula.replace(/\D/g,'').slice(-4) || '----'}</span>
-                </p>
+                <div className="bg-gray-900 rounded-lg px-2 py-1.5 text-[11px] text-gray-400">
+                  <span className="text-gray-600">Código: </span>
+                  <span className="font-mono text-yellow-400 font-bold">{editando.cedula.replace(/\D/g,'').slice(-4) || '----'}</span>
+                  <span className="text-gray-600"> (4 últimos dígitos cédula)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={copiarLink}
+                    className={`text-xs py-1.5 rounded-lg font-semibold transition-colors ${
+                      copiado ? 'bg-green-500 text-black' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}>
+                    {copiado ? '✅ ¡Copiado!' : '📋 Copiar link'}
+                  </button>
+                  <button onClick={() => {
+                    const codigo = editando.cedula.replace(/\D/g,'').slice(-4);
+                    const msg = [
+                      `🅿️ *ParkControl — Puesto ${String(editando.numero).padStart(2,'0')}*`,
+                      `\nHola ${editando.nombre},`,
+                      `Ya puedes consultar tu puesto en:`,
+                      `${linkAcceso}`,
+                      `\n*Placa:* ${editando.placa}`,
+                      `*Código de acceso:* ${codigo}`,
+                      `\n_Si necesitas ayuda, contáctanos._`,
+                    ].join('\n');
+                    navigator.clipboard.writeText(msg).then(() => {
+                      setCompartidoOk(true);
+                      setTimeout(() => setCompartidoOk(false), 2500);
+                    });
+                  }}
+                    className={`text-xs py-1.5 rounded-lg font-semibold transition-colors ${
+                      compartidoOk ? 'bg-green-500 text-black' : 'bg-green-700/40 text-green-300 hover:bg-green-700/60'
+                    }`}>
+                    {compartidoOk ? '✅ Listo!' : '📲 Copiar para WhatsApp'}
+                  </button>
+                </div>
               </div>
             )}
 
