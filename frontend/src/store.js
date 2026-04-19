@@ -336,28 +336,34 @@ export function marcarPendiente(id) {
   return nuevos;
 }
 
-// Resumen financiero global (basado en cuotas del período actual)
+// Resumen financiero global
 export function getResumenFinanciero() {
   const puestos = getPuestosActualizados();
   const ocupados = puestos.filter(p => p.estado !== 'libre');
 
-  let totalEsperado = 0;
-  let totalCobrado  = 0;
+  let totalEsperado = 0;  // cuota del período actual por puesto
+  let cobradoMes    = 0;  // cuota actual ya pagada (para calcular pendiente del mes)
+  let totalCobrado  = 0;  // TODAS las cuotas pagadas históricamente
 
   ocupados.forEach(p => {
     if (p.duracion === 'mes' && p.cuotas && p.cuotas.length > 0) {
       const cuotaActual = getCuotaActual(p);
       if (cuotaActual) {
         totalEsperado += cuotaActual.monto;
-        if (cuotaActual.pagado) totalCobrado += cuotaActual.monto;
+        if (cuotaActual.pagado) cobradoMes += cuotaActual.monto;
       }
+      // Sumar TODAS las cuotas pagadas al total histórico
+      totalCobrado += p.cuotas.filter(c => c.pagado).reduce((s, c) => s + (c.monto || 0), 0);
     } else {
       totalEsperado += p.precio || 0;
-      if (p.pagado) totalCobrado += p.precio || 0;
+      if (p.pagado) {
+        cobradoMes   += p.precio || 0;
+        totalCobrado += p.precio || 0;
+      }
     }
   });
 
-  const totalPendiente = totalEsperado - totalCobrado;
+  const totalPendiente = totalEsperado - cobradoMes;
   const pagadosCount   = ocupados.filter(p => {
     if (p.duracion === 'mes' && p.cuotas && p.cuotas.length > 0) {
       const ca = getCuotaActual(p);
@@ -367,7 +373,7 @@ export function getResumenFinanciero() {
   }).length;
 
   const morosos = puestos.filter(p => p.estado === 'mora');
-  return { ocupados, totalEsperado, totalCobrado, totalPendiente, pagadosCount, morosos };
+  return { ocupados, totalEsperado, totalCobrado, cobradoMes, totalPendiente, pagadosCount, morosos };
 }
 
 // Retorna puestos con estados auto-actualizados (mora/libre según cuotas y fechas)

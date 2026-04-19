@@ -90,7 +90,7 @@ export default function Finanzas() {
     setTimeout(() => { setShowPinModal(false); setPinNuevo(""); setPinConfirm(""); setPinOk(false); setPinError(""); }, 1500);
   }
 
-  const { ocupados, totalEsperado, totalCobrado, totalPendiente, pagadosCount, morosos } = resumen;
+  const { ocupados, totalEsperado, totalCobrado, cobradoMes, totalPendiente, pagadosCount, morosos } = resumen;
   const totalGastos = gastos.reduce((s, g) => s + g.monto, 0);
   const utilidadNeta = totalCobrado - totalGastos;
   const novedadesNoLeidas = novedades.filter(n => !n.leida).length;
@@ -138,13 +138,13 @@ export default function Finanzas() {
       <div className="max-w-4xl mx-auto px-4 mt-6">
         {/* Tarjetas de resumen */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-          <Tarjeta label="Ingresos esperados" valor={fmt(totalEsperado)} color="text-white" />
-          <Tarjeta label="Recaudado" valor={fmt(totalCobrado)} color="text-green-400" />
-          <Tarjeta label="Gastos" valor={fmt(totalGastos)} color="text-red-400" />
+          <Tarjeta label="Esperado este mes" valor={fmt(totalEsperado)} color="text-white" />
+          <Tarjeta label="Cobrado este mes" valor={fmt(cobradoMes)} color="text-blue-400" />
+          <Tarjeta label="Total recaudado" valor={fmt(totalCobrado)} color="text-green-400" />
           <Tarjeta label="Utilidad neta" valor={fmt(utilidadNeta)} color={utilidadNeta >= 0 ? "text-green-400" : "text-red-400"} />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-          <Tarjeta label="Pendiente por cobrar" valor={fmt(totalPendiente)} color="text-yellow-400" />
+          <Tarjeta label="Pendiente este mes" valor={fmt(totalPendiente)} color="text-yellow-400" />
           <Tarjeta label="Puestos en mora" valor={morosos.length} color={morosos.length > 0 ? "text-red-400" : "text-gray-400"} />
           <Tarjeta label="Novedades sin leer" valor={novedadesNoLeidas} color={novedadesNoLeidas > 0 ? "text-yellow-400" : "text-gray-400"} />
         </div>
@@ -415,7 +415,7 @@ export default function Finanzas() {
                   <span className="text-red-400 font-mono font-bold">{fmt(totalGastos)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Recaudado:</span>
+                  <span className="text-gray-400">Total recaudado:</span>
                   <span className="text-green-400 font-mono font-bold">{fmt(totalCobrado)}</span>
                 </div>
                 <div className={`flex justify-between text-base font-bold border-t border-gray-700 pt-3 ${utilidadNeta >= 0 ? "text-green-400" : "text-red-400"}`}>
