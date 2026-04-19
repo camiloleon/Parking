@@ -20,6 +20,7 @@ export default function AccesoCliente() {
   const [modalNovedad, setModalNovedad] = useState(false);
   const [novedad, setNovedad] = useState({ tipo: "otro", descripcion: "" });
   const [novedadOk, setNovedadOk] = useState(false);
+  const [camaraTab, setCamaraTab] = useState("vimtag");
 
   function buscar(e) {
     e.preventDefault();
@@ -166,38 +167,90 @@ export default function AccesoCliente() {
               </div>
             )}
 
-            {/* Cámara QR + instrucciones Canny Cam */}
+            {/* Cámara QR — Vimtag y Canny Cam */}
             {puesto.camara ? (
               <div className="bg-gray-800/50 rounded-xl p-4 flex flex-col items-center gap-3">
                 <p className="text-xs text-gray-500 uppercase tracking-widest">Ver mi cámara</p>
-                <div className="bg-white rounded-xl p-2 shadow-lg">
-                  <img src={puesto.camara} alt="QR cámara" className="w-40 h-40 object-contain" />
+
+                {/* QR grande */}
+                <div className="bg-white rounded-2xl p-3 shadow-lg">
+                  <img src={puesto.camara} alt="QR cámara" className="w-48 h-48 object-contain" />
                 </div>
-                <div className="w-full bg-gray-900/60 rounded-xl p-3 flex flex-col gap-2 text-xs">
-                  <p className="text-yellow-400 font-bold text-center text-sm"> Cómo ver tu cámara</p>
-                  <ol className="text-gray-300 flex flex-col gap-2 list-decimal list-inside">
-                    <li>
-                      Descarga la app <span className="text-white font-semibold">Canny Cam</span>
-                      <div className="flex gap-2 mt-1 ml-4">
-                        <a href="https://play.google.com/store/search?q=canny+cam" target="_blank" rel="noopener noreferrer"
-                          className="px-2 py-1 bg-green-700/40 text-green-300 rounded-lg hover:bg-green-700/60">
-                           Google Play
-                        </a>
-                        <a href="https://apps.apple.com/search?term=canny+cam" target="_blank" rel="noopener noreferrer"
-                          className="px-2 py-1 bg-blue-700/40 text-blue-300 rounded-lg hover:bg-blue-700/60">
-                           App Store
-                        </a>
-                      </div>
-                    </li>
-                    <li>Abre la app y toca <span className="text-white font-semibold">"Agregar cámara"</span></li>
-                    <li>Selecciona <span className="text-white font-semibold">"Escanear QR"</span> y apunta al código de arriba</li>
-                    <li>La cámara aparecerá automáticamente en tu lista</li>
-                    <li>Tócala para ver la imagen <span className="text-white font-semibold">en tiempo real</span></li>
-                  </ol>
-                  <p className="text-gray-600 text-[10px] text-center mt-1">
-                    Compatible con cámaras IP Vintag y la mayoría de marcas RTSP
-                  </p>
+                <p className="text-[11px] text-gray-500 text-center -mt-1">Escanea este QR con la app de tu preferencia</p>
+
+                {/* Tabs */}
+                <div className="flex w-full gap-1 bg-gray-900 rounded-xl p-1">
+                  <button
+                    onClick={() => setCamaraTab("vimtag")}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${camaraTab === "vimtag" ? "bg-blue-500 text-white" : "text-gray-400 hover:text-white"}`}
+                  >
+                    🌐 Vimtag
+                  </button>
+                  <button
+                    onClick={() => setCamaraTab("canny")}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${camaraTab === "canny" ? "bg-green-500 text-black" : "text-gray-400 hover:text-white"}`}
+                  >
+                    📱 Canny Cam
+                  </button>
                 </div>
+
+                {/* Tab Vimtag */}
+                {camaraTab === "vimtag" && (
+                  <div className="w-full bg-gray-900/70 rounded-xl p-3 flex flex-col gap-3 text-xs">
+                    <p className="text-blue-400 font-bold text-center text-sm">🌐 Ver con Vimtag</p>
+                    <p className="text-gray-400 text-center text-[11px]">Accede desde el navegador o la app oficial Vimtag.</p>
+                    <a
+                      href="https://cloud.vimtag.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600/30 border border-blue-500/40 text-blue-300 rounded-lg font-semibold hover:bg-blue-600/50 transition-colors"
+                    >
+                      🌐 Abrir Vimtag en el navegador
+                    </a>
+                    <p className="text-gray-500 text-[11px] text-center">O descarga la app oficial:</p>
+                    <div className="flex gap-2">
+                      <a href="https://play.google.com/store/search?q=vimtag" target="_blank" rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center py-2 bg-green-700/30 text-green-300 rounded-lg text-[11px] font-semibold hover:bg-green-700/50">
+                        ▶ Google Play
+                      </a>
+                      <a href="https://apps.apple.com/search?term=vimtag" target="_blank" rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center py-2 bg-gray-700/50 text-gray-300 rounded-lg text-[11px] font-semibold hover:bg-gray-700/70">
+                         App Store
+                      </a>
+                    </div>
+                    <ol className="text-gray-400 flex flex-col gap-1.5 list-decimal list-inside mt-1">
+                      <li>Crea cuenta gratuita en <span className="text-white">cloud.vimtag.com</span></li>
+                      <li>Inicia sesión en la app Vimtag</li>
+                      <li>Toca <span className="text-white">"Agregar dispositivo"</span> y escanea el QR</li>
+                      <li>Verás tu cámara en tiempo real</li>
+                    </ol>
+                  </div>
+                )}
+
+                {/* Tab Canny Cam */}
+                {camaraTab === "canny" && (
+                  <div className="w-full bg-gray-900/70 rounded-xl p-3 flex flex-col gap-3 text-xs">
+                    <p className="text-green-400 font-bold text-center text-sm">📱 Ver con Canny Cam</p>
+                    <p className="text-gray-400 text-center text-[11px]">Compatible con Vimtag y la mayoría de marcas RTSP/IP.</p>
+                    <div className="flex gap-2">
+                      <a href="https://play.google.com/store/search?q=canny+cam" target="_blank" rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center py-2 bg-green-700/30 text-green-300 rounded-lg text-[11px] font-semibold hover:bg-green-700/50">
+                        ▶ Google Play
+                      </a>
+                      <a href="https://apps.apple.com/search?term=canny+cam" target="_blank" rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center py-2 bg-gray-700/50 text-gray-300 rounded-lg text-[11px] font-semibold hover:bg-gray-700/70">
+                         App Store
+                      </a>
+                    </div>
+                    <ol className="text-gray-400 flex flex-col gap-1.5 list-decimal list-inside mt-1">
+                      <li>Descarga <span className="text-white font-semibold">Canny Cam</span></li>
+                      <li>Toca <span className="text-white">"Agregar cámara"</span></li>
+                      <li>Selecciona <span className="text-white">"Escanear QR"</span> y apunta al código de arriba</li>
+                      <li>La cámara aparece en tu lista automáticamente</li>
+                      <li>Tócala para ver en <span className="text-white font-semibold">tiempo real</span></li>
+                    </ol>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="bg-gray-800/40 border border-gray-700/40 rounded-xl p-4 flex flex-col items-center gap-1 text-center">
