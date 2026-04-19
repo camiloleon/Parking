@@ -110,6 +110,7 @@ const INICIAL = Array.from({ length: 20 }, (_, i) => ({
   pagado: false,
   fechaUltimoPago: '',
   historialPagos: [],
+  cuotas: [],
 }));
 
 const KEY = 'parkcontrol_puestos';
@@ -134,6 +135,29 @@ export function updatePuesto(id, cambios) {
   return nuevos;
 }
 
+// Intercambia los datos de cliente entre dos puestos (mantiene id y numero intactos)
+const CAMPOS_CLIENTE = ['estado','nombre','cedula','placa','color','fechaInicio','token','camara','tipo','duracion','precio','pagado','fechaUltimoPago','historialPagos','cuotas'];
+export function swapPuestos(idA, idB) {
+  const puestos = getPuestos();
+  const pA = puestos.find(p => p.id === idA);
+  const pB = puestos.find(p => p.id === idB);
+  if (!pA || !pB) return puestos;
+  const snapshot = (p) => Object.fromEntries(CAMPOS_CLIENTE.map(k => [k, p[k]]));
+  const datosA = snapshot(pA);
+  const datosB = snapshot(pB);
+  // Regenerar IDs de cuotas con el nuevo número de puesto
+  function reIdCuotas(cuotas, nuevoId) {
+    return (cuotas || []).map((c, i) => ({ ...c, id: `${nuevoId}-${i + 1}` }));
+  }
+  const nuevos = puestos.map(p => {
+    if (p.id === idA) return { ...p, ...datosB, cuotas: reIdCuotas(datosB.cuotas, idA) };
+    if (p.id === idB) return { ...p, ...datosA, cuotas: reIdCuotas(datosA.cuotas, idB) };
+    return p;
+  });
+  savePuestos(nuevos);
+  return nuevos;
+}
+
 // Genera un token mnemónico legible desde nombre + cédula + placa
 // Ej: JUPE-ABC-4567  (primeras 2 del nombre + 2 del apellido si hay + 3 de placa + 4 últimos cédula)
 export function generarToken(nombre, cedula, placa) {
@@ -144,6 +168,116 @@ export function generarToken(nombre, cedula, placa) {
   const c  = (cedula || '').replace(/\D/g, '').slice(-4);
   const partes = [n1, n2, p, c].filter(Boolean);
   return partes.join('-');
+}
+
+// ─── CUOTAS MENSUALES ────────────────────────────────────────────────────────
+
+function _periodoLabel(year, month) {
+  const fecha = new Date(year, month - 1, 1);
+  const mes = fecha.toLocaleDateString('es-CO', { month: 'long' });
+  return mes.charAt(0).toUpperCase() + mes.slice(1) + ' ' + year;
+}
+
+// Genera (o sincroniza) las cuotas mensuales de un puesto con duracion='mes'
+// Retorna el array de cuotas actualizado. No muta el puesto directamente.
+export function generarCuotasMensuales(puesto) {
+  if (!puesto.fechaInicio || !puesto.nombre || puesto.duracion !== 'mes') {
+    return puesto.cuotas || [];
+  }
+
+  const cuotasExistentes = puesto.cuotas || [];
+  const existentesPorN   = Object.fromEntries(cuotasExistentes.map(c => [c.n, c]));
+
+  const hoy   = new Date();
+  hoy.setHours(23, 59, 59, 999);
+  const inicio = new Date(puesto.fechaInicio + 'T00:00:00');
+
+  const resultado = [];
+  let n = 1;
+
+  while (true) {
+    // Inicio del período N = fechaInicio + (n-1) meses
+    const periodoStart = new Date(inicio.getFullYear(), inicio.getMonth() + (n - 1), inicio.getDate());
+    if (periodoStart > hoy) break;
+
+    // Fecha de cobro = fechaInicio + n meses
+    const fechaCobro = new Date(inicio.getFullYear(), inicio.getMonth() + n, inicio.getDate());
+    const periodo    = `${periodoStart.getFullYear()}-${String(periodoStart.getMonth() + 1).padStart(2, '0')}`;
+    const id         = `${puesto.id}-${n}`;
+
+    if (existentesPorN[n]) {
+      resultado.push(existentesPorN[n]);
+    } else {
+      resultado.push({
+        id,
+        n,
+        periodo,
+        label:            _periodoLabel(periodoStart.getFullYear(), periodoStart.getMonth() + 1),
+        fechaVencimiento: fechaCobro.toISOString().slice(0, 10),
+        monto:            puesto.precio,
+        pagado:           false,
+        fechaPago:        null,
+      });
+    }
+    n++;
+  }
+
+  // Migración: si no había cuotas, restaurar desde historialPagos (por orden)
+  if (cuotasExistentes.length === 0) {
+    (puesto.historialPagos || []).forEach((pago, i) => {
+      if (resultado[i] && !resultado[i].pagado) {
+        resultado[i] = { ...resultado[i], pagado: true, fechaPago: pago.fecha, monto: pago.monto || resultado[i].monto };
+      }
+    });
+    // Si el puesto tiene pagado=true pero sin historial, marcar la última cuota pagada
+    if (puesto.pagado && resultado.length > 0) {
+      const ultima = resultado[resultado.length - 1];
+      if (!ultima.pagado) {
+        resultado[resultado.length - 1] = { ...ultima, pagado: true, fechaPago: puesto.fechaUltimoPago || new Date().toISOString().slice(0, 10) };
+      }
+    }
+  }
+
+  return resultado;
+}
+
+// Retorna la cuota del período actual (mes en curso) o la última generada
+export function getCuotaActual(puesto) {
+  if (!puesto.cuotas || puesto.cuotas.length === 0) return null;
+  const hoy     = new Date();
+  const periodo = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  return puesto.cuotas.find(c => c.periodo === periodo) || puesto.cuotas[puesto.cuotas.length - 1];
+}
+
+// Registra el pago de una cuota específica
+export function registrarPagoCuota(puestoId, cuotaId) {
+  const hoy    = new Date().toISOString().slice(0, 10);
+  const puestos = getPuestos();
+  const nuevos  = puestos.map(p => {
+    if (p.id !== puestoId) return p;
+    const cuotas = (p.cuotas || []).map(c =>
+      c.id === cuotaId ? { ...c, pagado: true, fechaPago: hoy } : c
+    );
+    // Derivar pagado: ¿está la cuota del período actual pagada?
+    const cuotaActual  = getCuotaActual({ ...p, cuotas });
+    const pagadoActual = cuotaActual ? cuotaActual.pagado : p.pagado;
+    // fechaUltimoPago: la más reciente entre las cuotas pagadas
+    const cuotasPagadas = cuotas.filter(c => c.pagado && c.fechaPago).sort((a, b) => b.fechaPago.localeCompare(a.fechaPago));
+    const ultimaPagada  = cuotasPagadas[0];
+    // historialPagos derivado de cuotas (para compatibilidad)
+    const historialPagos = cuotas
+      .filter(c => c.pagado && c.fechaPago)
+      .map(c => ({ fecha: c.fechaPago, monto: c.monto, label: c.label }));
+    return {
+      ...p,
+      cuotas,
+      pagado:          pagadoActual,
+      fechaUltimoPago: ultimaPagada?.fechaPago || p.fechaUltimoPago || '',
+      historialPagos,
+    };
+  });
+  savePuestos(nuevos);
+  return nuevos;
 }
 
 // Busca por placa + últimos 4 dígitos de cédula (login cliente)
@@ -160,12 +294,20 @@ export function buscarPorPlaca(placa) {
   return getPuestosActualizados().find(p => p.placa && p.placa.toUpperCase() === placa.toUpperCase().trim()) ?? null;
 }
 
-// Registra un pago para un puesto
+// Registra pago general (marca todas las cuotas pendientes como pagadas)
 export function registrarPago(id) {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy    = new Date().toISOString().slice(0, 10);
   const puestos = getPuestos();
-  const nuevos = puestos.map(p => {
+  const nuevos  = puestos.map(p => {
     if (p.id !== id) return p;
+    if (p.cuotas && p.cuotas.length > 0) {
+      const cuotas = p.cuotas.map(c => !c.pagado ? { ...c, pagado: true, fechaPago: hoy } : c);
+      const historialPagos = cuotas
+        .filter(c => c.pagado && c.fechaPago)
+        .map(c => ({ fecha: c.fechaPago, monto: c.monto, label: c.label }));
+      return { ...p, cuotas, pagado: true, fechaUltimoPago: hoy, historialPagos };
+    }
+    // Puestos diarios (sin cuotas)
     const historial = [...(p.historialPagos || []), { fecha: hoy, monto: p.precio }];
     return { ...p, pagado: true, fechaUltimoPago: hoy, historialPagos: historial };
   });
@@ -173,59 +315,120 @@ export function registrarPago(id) {
   return nuevos;
 }
 
-// Marca un puesto como pendiente de pago (deuda)
+// Marca la cuota actual como pendiente de pago
 export function marcarPendiente(id) {
-  const nuevos = getPuestos().map(p => p.id === id ? { ...p, pagado: false } : p);
+  const puestos = getPuestos();
+  const nuevos  = puestos.map(p => {
+    if (p.id !== id) return p;
+    if (p.cuotas && p.cuotas.length > 0) {
+      const cuotas = [...p.cuotas];
+      // Desmarcar la última cuota (período actual)
+      const idx = cuotas.length - 1;
+      cuotas[idx] = { ...cuotas[idx], pagado: false, fechaPago: null };
+      const historialPagos = cuotas
+        .filter(c => c.pagado && c.fechaPago)
+        .map(c => ({ fecha: c.fechaPago, monto: c.monto, label: c.label }));
+      return { ...p, cuotas, pagado: false, historialPagos };
+    }
+    return { ...p, pagado: false };
+  });
   savePuestos(nuevos);
   return nuevos;
 }
 
-// Resumen financiero global
+// Resumen financiero global (basado en cuotas del período actual)
 export function getResumenFinanciero() {
   const puestos = getPuestosActualizados();
-  const ocupados = puestos.filter(p => p.estado === 'ocupado');
-  const totalEsperado = ocupados.reduce((s, p) => s + (p.precio || 0), 0);
-  const totalCobrado  = ocupados.filter(p => p.pagado).reduce((s, p) => s + (p.precio || 0), 0);
-  const totalPendiente = totalEsperado - totalCobrado;
-  const pagadosCount   = ocupados.filter(p => p.pagado).length;
-  const morosos = ocupados.filter(p => {
-    if (p.pagado) return false;
-    const v = calcularVencimiento(p.fechaInicio, p.duracion, p.fechaUltimoPago || null);
-    return v && v.vencido;
+  const ocupados = puestos.filter(p => p.estado !== 'libre');
+
+  let totalEsperado = 0;
+  let totalCobrado  = 0;
+
+  ocupados.forEach(p => {
+    if (p.duracion === 'mes' && p.cuotas && p.cuotas.length > 0) {
+      const cuotaActual = getCuotaActual(p);
+      if (cuotaActual) {
+        totalEsperado += cuotaActual.monto;
+        if (cuotaActual.pagado) totalCobrado += cuotaActual.monto;
+      }
+    } else {
+      totalEsperado += p.precio || 0;
+      if (p.pagado) totalCobrado += p.precio || 0;
+    }
   });
+
+  const totalPendiente = totalEsperado - totalCobrado;
+  const pagadosCount   = ocupados.filter(p => {
+    if (p.duracion === 'mes' && p.cuotas && p.cuotas.length > 0) {
+      const ca = getCuotaActual(p);
+      return ca ? ca.pagado : false;
+    }
+    return p.pagado;
+  }).length;
+
+  const morosos = puestos.filter(p => p.estado === 'mora');
   return { ocupados, totalEsperado, totalCobrado, totalPendiente, pagadosCount, morosos };
 }
 
-// Retorna puestos con estados auto-actualizados (mora/libre según fechas y pagos)
+// Retorna puestos con estados auto-actualizados (mora/libre según cuotas y fechas)
 export function getPuestosActualizados() {
   const puestos = getPuestos();
-  let changed = false;
+  let changed   = false;
+  const hoyStr  = new Date().toISOString().slice(0, 10);
+
   const actualizados = puestos.map(p => {
-    // Libre si no tiene nombre/placa
-    if (!p.nombre && !p.placa && p.estado !== 'libre') {
-      changed = true;
-      return { ...p, estado: 'libre' };
-    }
-    // Si tiene datos y está libre, pasa a ocupado
-    if (p.nombre && p.placa && p.estado === 'libre') {
-      changed = true;
-      return { ...p, estado: 'ocupado' };
-    }
-    // Auto-mora: si ocupado, no pagado y fecha vencida
-    if (p.estado === 'ocupado' && p.fechaInicio && !p.pagado) {
-      const v = calcularVencimiento(p.fechaInicio, p.duracion, p.fechaUltimoPago || null);
-      if (v && v.vencido) {
+    let u = { ...p };
+
+    // ── Auto-generar cuotas para puestos mensuales con cliente ──
+    if (u.nombre && u.fechaInicio && u.duracion === 'mes') {
+      const nuevasCuotas = generarCuotasMensuales(u);
+      if (JSON.stringify(nuevasCuotas) !== JSON.stringify(u.cuotas || [])) {
+        u = { ...u, cuotas: nuevasCuotas };
         changed = true;
-        return { ...p, estado: 'mora' };
+      }
+      // Derivar pagado desde la cuota actual
+      const ca = getCuotaActual(u);
+      const pagadoDerived = ca ? ca.pagado : u.pagado;
+      if (pagadoDerived !== u.pagado) {
+        u = { ...u, pagado: pagadoDerived };
+        changed = true;
       }
     }
-    // Salir de mora si ya pagó
-    if (p.estado === 'mora' && p.pagado) {
+
+    // ── Estado libre / ocupado ──
+    if (!u.nombre && !u.placa && u.estado !== 'libre') {
       changed = true;
-      return { ...p, estado: 'ocupado' };
+      return { ...u, estado: 'libre', cuotas: [] };
     }
-    return p;
+    if (u.nombre && u.placa && u.estado === 'libre') {
+      changed = true;
+      return { ...u, estado: 'ocupado' };
+    }
+
+    // ── Auto-mora: cuotas vencidas sin pagar ──
+    if ((u.estado === 'ocupado' || u.estado === 'mora') && u.nombre) {
+      if (u.duracion === 'mes' && u.cuotas && u.cuotas.length > 0) {
+        const tieneMora = u.cuotas.some(c => !c.pagado && c.fechaVencimiento < hoyStr);
+        if (tieneMora && u.estado === 'ocupado') {
+          changed = true;
+          u = { ...u, estado: 'mora' };
+        } else if (!tieneMora && u.estado === 'mora') {
+          changed = true;
+          u = { ...u, estado: 'ocupado' };
+        }
+      } else {
+        // Puestos diarios: lógica original
+        if (u.estado === 'ocupado' && u.fechaInicio && !u.pagado) {
+          const v = calcularVencimiento(u.fechaInicio, u.duracion, u.fechaUltimoPago || null);
+          if (v && v.vencido) { changed = true; u = { ...u, estado: 'mora' }; }
+        }
+        if (u.estado === 'mora' && u.pagado) { changed = true; u = { ...u, estado: 'ocupado' }; }
+      }
+    }
+
+    return u;
   });
+
   if (changed) savePuestos(actualizados);
   return actualizados;
 }

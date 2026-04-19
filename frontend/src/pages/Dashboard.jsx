@@ -1,6 +1,6 @@
 ﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getPuestosActualizados, updatePuesto, TARIFAS, logout } from "../store";
+import { getPuestosActualizados, updatePuesto, TARIFAS, logout, getCuotaActual, swapPuestos } from "../store";
 
 const COLORES = {
   libre:   "border-green-500 bg-green-950/40 text-green-400",
@@ -16,6 +16,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [puestos, setPuestos] = useState(() => getPuestosActualizados());
   const [editando, setEditando] = useState(null);
+  const [swapTarget, setSwapTarget] = useState("");
 
   function abrir(p) {
     setEditando({ ...p });
@@ -29,10 +30,27 @@ export default function Dashboard() {
     setEditando(ed => ({ ...ed, duracion, precio: TARIFAS[ed.tipo][duracion] }));
   }
 
+  function hacerSwap() {
+    const destino = Number(swapTarget);
+    if (!destino || destino === editando.numero) return;
+    const targetPuesto = puestos.find(p => p.numero === destino);
+    if (!targetPuesto) return;
+    if (!window.confirm(`¿Mover los datos del puesto ${editando.numero} al puesto ${destino}?`)) return;
+    const nuevos = swapPuestos(editando.id, targetPuesto.id);
+    setPuestos(nuevos);
+    setEditando(null);
+    setSwapTarget("");
+  }
+
   function guardar() {
     // Estado automático: si tiene nombre+placa -> ocupado; si está vacío -> libre
     const tieneCliente = editando.nombre.trim() || editando.placa.trim();
     const estadoAuto = tieneCliente ? 'ocupado' : 'libre';
+
+    // Si cambió la fecha de inicio, limpiar cuotas para que se regeneren desde cero
+    const puestoActual = puestos.find(p => p.id === editando.id);
+    const fechaInicioChanged = puestoActual?.fechaInicio !== editando.fechaInicio;
+    const cuotasGuardar = (!tieneCliente || fechaInicioChanged) ? [] : (editando.cuotas || []);
 
     const nuevos = updatePuesto(editando.id, {
       estado:      estadoAuto,
@@ -46,9 +64,9 @@ export default function Dashboard() {
       duracion:    editando.duracion,
       precio:      Number(editando.precio),
       fechaUltimoPago: tieneCliente ? (editando.fechaUltimoPago || '') : '',
-      // pagado = true solo si hay fecha de último pago
       pagado:      tieneCliente ? !!editando.fechaUltimoPago : false,
       historialPagos: tieneCliente ? editando.historialPagos : [],
+      cuotas:      cuotasGuardar,
     });
     setPuestos(nuevos);
     setEditando(null);
@@ -109,6 +127,15 @@ export default function Dashboard() {
             {p.estado !== "libre" && (
               <span className="text-[9px] text-gray-500">{fmt(p.precio)}/{p.duracion}</span>
             )}
+            {p.estado !== "libre" && p.duracion === "mes" && (() => {
+              const ca = getCuotaActual(p);
+              if (!ca) return null;
+              return (
+                <span className={`text-[9px] font-bold ${ca.pagado ? 'text-green-400' : 'text-red-400'}`}>
+                  {ca.label?.split(' ')[0]} {ca.pagado ? '✓' : '!'}
+                </span>
+              );
+            })()}
           </button>
         ))}
       </div>
@@ -221,6 +248,36 @@ export default function Dashboard() {
                   </button>
                 </div>
                 <p className="text-[10px] text-gray-600">Deja vacío si aún no ha pagado. Al guardar se recalcula el estado automáticamente.</p>
+              </div>
+            )}
+
+            {/* Mover datos a otro puesto */}
+            {editando.nombre && (
+              <div className="bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-3 flex flex-col gap-2">
+                <p className="text-xs text-gray-500 uppercase tracking-widest">Mover cliente a otro puesto</p>
+                <div className="flex gap-2 items-center">
+                  <select
+                    value={swapTarget}
+                    onChange={e => setSwapTarget(e.target.value)}
+                    className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-yellow-500"
+                  >
+                    <option value="">Seleccionar puesto destino...</option>
+                    {puestos.filter(p => p.id !== editando.id).map(p => (
+                      <option key={p.id} value={p.numero}>
+                        #{String(p.numero).padStart(2,"0")} — {p.nombre ? p.nombre : "(libre)"}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={hacerSwap}
+                    disabled={!swapTarget}
+                    className="text-xs px-3 py-2 bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 rounded-lg hover:bg-yellow-500/40 font-semibold whitespace-nowrap disabled:opacity-40"
+                  >
+                    Mover
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-600">Intercambia los datos de este puesto con el destino seleccionado.</p>
               </div>
             )}
 

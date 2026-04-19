@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  getPuestos, getResumenFinanciero, registrarPago, marcarPendiente,
-  calcularVencimiento, logout, cambiarPin,
+  getPuestos, getResumenFinanciero, registrarPago, registrarPagoCuota, marcarPendiente,
+  calcularVencimiento, logout, cambiarPin, getCuotaActual,
   getGastos, agregarGasto, eliminarGasto,
   getNovedades, marcarNovedadLeida,
 } from "../store";
@@ -43,6 +43,11 @@ export default function Finanzas() {
 
   function cobrar(id) {
     registrarPago(id);
+    refrescar();
+  }
+
+  function cobrarCuota(puestoId, cuotaId) {
+    registrarPagoCuota(puestoId, cuotaId);
     refrescar();
   }
 
@@ -91,8 +96,15 @@ export default function Finanzas() {
   const novedadesNoLeidas = novedades.filter(n => !n.leida).length;
 
   const historialAll = puestos
-    .flatMap(p => (p.historialPagos || []).map(h => ({ ...h, nombre: p.nombre, placa: p.placa, numero: p.numero })))
-    .sort((a, b) => b.fecha.localeCompare(a.fecha));
+    .flatMap(p => {
+      if (p.cuotas && p.cuotas.length > 0) {
+        return p.cuotas
+          .filter(c => c.pagado && c.fechaPago)
+          .map(c => ({ fecha: c.fechaPago, monto: c.monto, label: c.label, nombre: p.nombre, placa: p.placa, numero: p.numero }));
+      }
+      return (p.historialPagos || []).map(h => ({ ...h, nombre: p.nombre, placa: p.placa, numero: p.numero }));
+    })
+    .sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 pb-10">
@@ -203,48 +215,96 @@ export default function Finanzas() {
 
         {/* Tab: Puestos */}
         {tab === "puestos" && (
-          <div className="space-y-2">
+          <div className="space-y-4">
             {ocupados.length === 0 && (
               <p className="text-gray-500 text-sm text-center py-8">No hay puestos ocupados</p>
             )}
             {ocupados.map(p => {
               const v = calcularVencimiento(p.fechaInicio, p.duracion);
+              const tieneCuotas = p.cuotas && p.cuotas.length > 0;
+              const cuotasPendientes = tieneCuotas ? p.cuotas.filter(c => !c.pagado) : [];
+              const totalPendientePuesto = cuotasPendientes.reduce((s, c) => s + c.monto, 0);
+              const hoyStr = new Date().toISOString().slice(0, 10);
               return (
-                <div key={p.id} className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 flex items-center justify-between gap-2">
-                  <div className="flex-1 min-w-0">
+                <div key={p.id} className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
+                  {/* Cabecera del puesto */}
+                  <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-white">#{p.numero}</span>
                       <span className="text-sm text-gray-200 truncate">{p.nombre || "—"}</span>
-                      <Badge ok={p.pagado} />
+                      <Badge ok={tieneCuotas ? (getCuotaActual(p)?.pagado ?? false) : p.pagado} />
                     </div>
-                    <div className="text-xs text-gray-400 mt-0.5 flex flex-wrap gap-x-3">
-                      <span>{p.placa || "—"}</span>
-                      <span>{p.tipo} · {p.duracion}</span>
-                      <span className="text-green-400 font-mono">{fmt(p.precio)}</span>
-                      {v && (
-                        <span className={v.vencido ? "text-red-400" : v.diasRestantes <= 5 ? "text-yellow-400" : "text-gray-400"}>
-                          {v.vencido ? `Vencido hace ${Math.abs(v.diasRestantes)}d` : `Vence en ${v.diasRestantes}d`}
-                        </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400">{p.placa}</span>
+                      <span className="text-xs text-green-400 font-mono font-bold">{fmt(p.precio)}/{p.duracion}</span>
+                    </div>
+                  </div>
+
+                  {/* Cuotas mensuales */}
+                  {tieneCuotas ? (
+                    <div className="space-y-1 mt-2">
+                      {p.cuotas.map(c => (
+                        <div key={c.id} className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs ${
+                          c.pagado
+                            ? 'bg-green-950/30 border border-green-900/40'
+                            : c.fechaVencimiento < hoyStr
+                            ? 'bg-red-950/30 border border-red-900/40'
+                            : 'bg-gray-800/60 border border-gray-700/40'
+                        }`}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-gray-200 font-medium">{c.label}</span>
+                            {c.pagado
+                              ? <span className="text-[10px] text-gray-500">Pagado: {c.fechaPago}</span>
+                              : <span className={`text-[10px] font-semibold ${
+                                  c.fechaVencimiento < hoyStr ? 'text-red-400' : 'text-yellow-400'
+                                }`}>
+                                  {c.fechaVencimiento < hoyStr ? 'Vencida' : 'Pendiente'}
+                                </span>
+                            }
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`font-mono font-bold ${
+                              c.pagado ? 'text-green-400' : 'text-yellow-400'
+                            }`}>{fmt(c.monto)}</span>
+                            {!c.pagado && (
+                              <button
+                                onClick={() => cobrarCuota(p.id, c.id)}
+                                className="px-2 py-1 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/40 font-semibold whitespace-nowrap"
+                              >
+                                Registrar pago
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {cuotasPendientes.length > 0 && (
+                        <div className="flex justify-between items-center pt-1 px-1">
+                          <span className="text-[11px] text-gray-500">{cuotasPendientes.length} cuota(s) pendiente(s):</span>
+                          <span className="text-yellow-400 font-mono font-bold text-sm">{fmt(totalPendientePuesto)}</span>
+                        </div>
                       )}
                     </div>
-                    {p.fechaUltimoPago && (
-                      <p className="text-xs text-gray-500 mt-0.5">Último pago: {p.fechaUltimoPago}</p>
-                    )}
-                  </div>
-                  {p.pagado ? (
-                    <button
-                      onClick={() => desmarcar(p.id)}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-yellow-400 shrink-0"
-                    >
-                      Marcar pendiente
-                    </button>
                   ) : (
-                    <button
-                      onClick={() => cobrar(p.id)}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/40 font-semibold shrink-0"
-                    >
-                      Registrar pago
-                    </button>
+                    /* Puesto diario sin cuotas */
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="text-xs text-gray-400 flex gap-3 flex-wrap">
+                        <span>{p.tipo} · {p.duracion}</span>
+                        {v && (
+                          <span className={v.vencido ? "text-red-400" : v.diasRestantes <= 5 ? "text-yellow-400" : "text-gray-400"}>
+                            {v.vencido ? `Vencido hace ${Math.abs(v.diasRestantes)}d` : `Vence en ${v.diasRestantes}d`}
+                          </span>
+                        )}
+                      </div>
+                      {p.pagado ? (
+                        <button onClick={() => desmarcar(p.id)} className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-yellow-400 shrink-0">
+                          Marcar pendiente
+                        </button>
+                      ) : (
+                        <button onClick={() => cobrar(p.id)} className="text-xs px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/40 font-semibold shrink-0">
+                          Registrar pago
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               );
@@ -262,7 +322,7 @@ export default function Finanzas() {
                 <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold text-white">Puesto #{h.numero} — {h.nombre}</p>
-                    <p className="text-xs text-gray-400">{h.placa} · {h.fecha}</p>
+                    <p className="text-xs text-gray-400">{h.placa} · {h.label || h.fecha}</p>
                   </div>
                   <span className="text-green-400 font-mono font-bold text-sm">{fmt(h.monto)}</span>
                 </div>
