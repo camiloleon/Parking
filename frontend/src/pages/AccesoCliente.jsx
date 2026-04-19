@@ -166,7 +166,7 @@ export default function AccesoCliente() {
               </div>
             )}
 
-            {/* Cámara  QR + instrucciones Canny Cam */}
+            {/* Cámara QR + instrucciones Canny Cam */}
             {puesto.camara ? (
               <div className="bg-gray-800/50 rounded-xl p-4 flex flex-col items-center gap-3">
                 <p className="text-xs text-gray-500 uppercase tracking-widest">Ver mi cámara</p>
@@ -200,21 +200,27 @@ export default function AccesoCliente() {
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center gap-2 bg-gray-800 text-gray-600 font-bold rounded-xl py-3 select-none text-sm">
-                 Sin cámara asignada
+              <div className="bg-gray-800/40 border border-gray-700/40 rounded-xl p-4 flex flex-col items-center gap-1 text-center">
+                <p className="text-gray-500 text-sm font-semibold"> Sin QR de cámara</p>
+                <p className="text-gray-600 text-xs">El administrador aún no ha configurado la cámara para este puesto.</p>
               </div>
             )}
 
-            <button
-              onClick={() => setModalNovedad(true)}
-              className="flex items-center justify-center gap-2 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 font-semibold rounded-xl py-3 hover:bg-yellow-500/20 transition-colors text-sm"
-            >
-               Reportar novedad
-            </button>
-
-            <button onClick={volver} className="text-xs text-gray-600 hover:text-gray-400 text-center mt-1">
-               Consultar otra placa
-            </button>
+            {/* Botones de acción */}
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              <button
+                onClick={() => setModalNovedad(true)}
+                className="flex items-center justify-center gap-1.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 font-semibold rounded-xl py-3 hover:bg-yellow-500/20 transition-colors text-sm"
+              >
+                 Reportar novedad
+              </button>
+              <button
+                onClick={volver}
+                className="flex items-center justify-center gap-1.5 bg-gray-800 border border-gray-700 text-gray-300 font-semibold rounded-xl py-3 hover:bg-gray-700 transition-colors text-sm"
+              >
+                 Ver otro puesto
+              </button>
+            </div>
           </div>
         </div>
 
