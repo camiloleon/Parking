@@ -200,7 +200,7 @@ export default function AccesoCliente() {
                     <p className="text-blue-400 font-bold text-center text-sm">🌐 Ver con Vimtag</p>
                     <p className="text-gray-400 text-center text-[11px]">Accede desde el navegador o la app oficial Vimtag.</p>
                     <a
-                      href="https://cloud.vimtag.com"
+                      href="https://www.vimtag.com"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600/30 border border-blue-500/40 text-blue-300 rounded-lg font-semibold hover:bg-blue-600/50 transition-colors"
@@ -219,7 +219,7 @@ export default function AccesoCliente() {
                       </a>
                     </div>
                     <ol className="text-gray-400 flex flex-col gap-1.5 list-decimal list-inside mt-1">
-                      <li>Crea cuenta gratuita en <span className="text-white">cloud.vimtag.com</span></li>
+                      <li>Crea cuenta gratuita en <span className="text-white">vimtag.com</span></li>
                       <li>Inicia sesión en la app Vimtag</li>
                       <li>Toca <span className="text-white">"Agregar dispositivo"</span> y escanea el QR</li>
                       <li>Verás tu cámara en tiempo real</li>
