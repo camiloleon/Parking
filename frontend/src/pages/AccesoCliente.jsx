@@ -200,7 +200,7 @@ export default function AccesoCliente() {
                     <p className="text-blue-400 font-bold text-center text-sm">🌐 Ver con Vimtag</p>
                     <p className="text-gray-400 text-center text-[11px]">Accede desde el navegador o la app oficial Vimtag.</p>
                     <a
-                      href="https://www.vimtag.com"
+                      href="https://www.vimtag.com/device?hl=en"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600/30 border border-blue-500/40 text-blue-300 rounded-lg font-semibold hover:bg-blue-600/50 transition-colors"
