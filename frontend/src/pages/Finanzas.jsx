@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  getPuestos, getResumenFinanciero, registrarPago, marcarPendiente,
-  calcularVencimiento, logout, cambiarPin,
+  getPuestos, getPuestosActualizados, getResumenFinanciero, registrarPago, marcarPendiente,
+  calcularVencimiento, logout, cambiarPin, updatePuesto,
   getGastos, agregarGasto, eliminarGasto,
   getNovedades, marcarNovedadLeida,
 } from "../store";
@@ -21,11 +21,15 @@ function Badge({ ok }) {
 
 export default function Finanzas() {
   const navigate = useNavigate();
-  const [puestos, setPuestos] = useState(() => getPuestos());
-  const [resumen, setResumen] = useState(() => getResumenFinanciero());
-  const [tab, setTab] = useState("resumen"); // resumen | puestos | historial | gastos | novedades
-  const [gastos, setGastos] = useState(() => getGastos());
-  const [novedades, setNovedades] = useState(() => getNovedades());
+  const [puestos, setPuestos] = useState([]);
+  const [resumen, setResumen] = useState({ ocupados: [], totalEsperado: 0, totalCobrado: 0, totalPendiente: 0, pagadosCount: 0, morosos: [] });
+  const [tab, setTab] = useState("resumen");
+  const [gastos, setGastos] = useState([]);
+  const [novedades, setNovedades] = useState([]);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => { refrescar(); }, []);
+  const [editPago, setEditPago] = useState(null); // { id, fechaUltimoPago }
   const [formGasto, setFormGasto] = useState({ fecha: new Date().toISOString().slice(0,10), categoria: 'servicio', descripcion: '', monto: '' });
   const [gOk, setGOk] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
@@ -34,20 +38,31 @@ export default function Finanzas() {
   const [pinError, setPinError] = useState("");
   const [pinOk, setPinOk] = useState(false);
 
-  function refrescar() {
-    setPuestos(getPuestos());
-    setResumen(getResumenFinanciero());
-    setGastos(getGastos());
-    setNovedades(getNovedades());
+  async function refrescar() {
+    setCargando(true);
+    const [p, r, g, n] = await Promise.all([getPuestosActualizados(), getResumenFinanciero(), getGastos(), getNovedades()]);
+    setPuestos(p); setResumen(r); setGastos(g); setNovedades(n);
+    setCargando(false);
   }
 
-  function cobrar(id) {
-    registrarPago(id);
+  async function cobrar(id) {
+    const hoy = new Date().toISOString().slice(0, 10);
+    await updatePuesto(id, { pagado: true, fechaUltimoPago: hoy });
     refrescar();
   }
 
-  function desmarcar(id) {
-    marcarPendiente(id);
+  async function desmarcar(id) {
+    await updatePuesto(id, { pagado: false });
+    refrescar();
+  }
+
+  async function guardarFechaPago(id, fecha) {
+    if (!fecha) {
+      await updatePuesto(id, { pagado: false, fechaUltimoPago: '' });
+    } else {
+      await updatePuesto(id, { pagado: true, fechaUltimoPago: fecha });
+    }
+    setEditPago(null);
     refrescar();
   }
 
@@ -56,31 +71,31 @@ export default function Finanzas() {
     navigate("/");
   }
 
-  function guardarGasto(e) {
+  async function guardarGasto(e) {
     e.preventDefault();
     if (!formGasto.descripcion.trim() || !formGasto.monto) return;
-    agregarGasto(formGasto);
-    setGastos(getGastos());
+    await agregarGasto(formGasto);
     setFormGasto({ fecha: new Date().toISOString().slice(0,10), categoria: 'servicio', descripcion: '', monto: '' });
     setGOk(true);
     setTimeout(() => setGOk(false), 2000);
+    refrescar();
   }
 
-  function borrarGasto(id) {
-    eliminarGasto(id);
-    setGastos(getGastos());
+  async function borrarGasto(id) {
+    await eliminarGasto(id);
+    refrescar();
   }
 
-  function leerNovedad(id) {
-    marcarNovedadLeida(id);
-    setNovedades(getNovedades());
+  async function leerNovedad(id) {
+    await marcarNovedadLeida(id);
+    refrescar();
   }
 
-  function guardarPin(e) {
+  async function guardarPin(e) {
     e.preventDefault();
     if (pinNuevo.length < 4) { setPinError("Mínimo 4 dígitos"); return; }
     if (pinNuevo !== pinConfirm) { setPinError("Los PINs no coinciden"); return; }
-    cambiarPin(pinNuevo);
+    await cambiarPin(pinNuevo);
     setPinOk(true);
     setTimeout(() => { setShowPinModal(false); setPinNuevo(""); setPinConfirm(""); setPinOk(false); setPinError(""); }, 1500);
   }
@@ -181,17 +196,17 @@ export default function Finanzas() {
             {morosos.length === 0 ? (
               <p className="text-gray-500 text-sm text-center py-8">✅ Sin puestos en mora</p>
             ) : morosos.map(p => {
-              const v = calcularVencimiento(p.fechaInicio, p.duracion);
+              const v = calcularVencimiento(p.fechaInicio, p.duracion, false, null);
               return (
-                <div key={p.id} className="bg-red-950/30 border border-red-800/50 rounded-xl px-4 py-3 flex items-center justify-between">
-                  <div>
+                <div key={p.id} className="bg-red-950/30 border border-red-800/50 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
                     <p className="font-semibold text-red-300">Puesto {p.numero} — {p.nombre}</p>
                     <p className="text-xs text-gray-400">{p.placa} · {fmt(p.precio)}</p>
-                    {v && <p className="text-xs text-red-400 mt-0.5">Vencido hace {Math.abs(v.diasRestantes)} día(s)</p>}
+                    {v && <p className="text-xs text-red-400 mt-0.5">⚠ {v.diasMora} {v.diasMora === 1 ? 'día' : 'días'} en mora — venció el {v.anclaActual.toLocaleDateString('es-CO', {day:'2-digit',month:'long'})}</p>}
                   </div>
                   <button
-                    onClick={() => cobrar(p.id)}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/40 font-semibold"
+                    onClick={() => setEditPago({ id: p.id, fechaUltimoPago: p.fechaUltimoPago || '' })}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/40 font-semibold shrink-0"
                   >
                     Registrar pago
                   </button>
@@ -208,43 +223,70 @@ export default function Finanzas() {
               <p className="text-gray-500 text-sm text-center py-8">No hay puestos ocupados</p>
             )}
             {ocupados.map(p => {
-              const v = calcularVencimiento(p.fechaInicio, p.duracion);
+              const v = calcularVencimiento(p.fechaInicio, p.duracion, p.pagado, p.fechaUltimoPago || null);
+              const editando = editPago?.id === p.id;
               return (
-                <div key={p.id} className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 flex items-center justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold text-white">#{p.numero}</span>
-                      <span className="text-sm text-gray-200 truncate">{p.nombre || "—"}</span>
-                      <Badge ok={p.pagado} />
-                    </div>
-                    <div className="text-xs text-gray-400 mt-0.5 flex flex-wrap gap-x-3">
-                      <span>{p.placa || "—"}</span>
-                      <span>{p.tipo} · {p.duracion}</span>
-                      <span className="text-green-400 font-mono">{fmt(p.precio)}</span>
-                      {v && (
-                        <span className={v.vencido ? "text-red-400" : v.diasRestantes <= 5 ? "text-yellow-400" : "text-gray-400"}>
-                          {v.vencido ? `Vencido hace ${Math.abs(v.diasRestantes)}d` : `Vence en ${v.diasRestantes}d`}
-                        </span>
+                <div key={p.id} className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-bold text-white">#{p.numero}</span>
+                        <span className="text-sm text-gray-200 truncate">{p.nombre || "—"}</span>
+                        <Badge ok={p.pagado} />
+                      </div>
+                      <div className="text-xs text-gray-400 mt-0.5 flex flex-wrap gap-x-3">
+                        <span>{p.placa || "—"}</span>
+                        <span>{p.tipo} · {p.duracion}</span>
+                        <span className="text-green-400 font-mono">{fmt(p.precio)}</span>
+                        {v && (
+                          <span className={!p.pagado && v.diasMora > 0 ? "text-red-400" : v.diasRestantes <= 5 ? "text-yellow-400" : "text-gray-400"}>
+                            {!p.pagado && v.diasMora > 0
+                              ? `⚠ ${v.diasMora}d mora (venció el ${v.anclaActual.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit'})})`
+                              : `Próx. pago: ${v.fechaPago.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit'})} (${v.diasRestantes}d)`
+                            }
+                          </span>
+                        )}
+                      </div>
+                      {p.fechaUltimoPago && (
+                        <p className="text-xs text-gray-500 mt-0.5">Último pago recibido: {p.fechaUltimoPago}{v?.diasTarde > 0 ? ` (⚠ ${v.diasTarde}d tarde)` : ''}</p>
                       )}
                     </div>
-                    {p.fechaUltimoPago && (
-                      <p className="text-xs text-gray-500 mt-0.5">Último pago: {p.fechaUltimoPago}</p>
-                    )}
+                    <button
+                      onClick={() => setEditPago(editando ? null : { id: p.id, fechaUltimoPago: p.fechaUltimoPago || '' })}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/40 font-semibold shrink-0"
+                    >
+                      {editando ? 'Cerrar' : '🗓 Editar pago'}
+                    </button>
                   </div>
-                  {p.pagado ? (
-                    <button
-                      onClick={() => desmarcar(p.id)}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-yellow-400 shrink-0"
-                    >
-                      Marcar pendiente
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => cobrar(p.id)}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/40 font-semibold shrink-0"
-                    >
-                      Registrar pago
-                    </button>
+
+                  {/* Editor inline de fecha de pago */}
+                  {editando && (
+                    <div className="bg-gray-800 rounded-xl p-3 flex flex-col gap-2 border border-gray-700">
+                      <p className="text-[10px] text-gray-500 uppercase tracking-widest">Editar fecha de último pago</p>
+                      <p className="text-[10px] text-gray-600">Ancla ciclo: {v?.anclaActual.toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'})}</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="date"
+                          value={editPago.fechaUltimoPago}
+                          onChange={e => setEditPago(ep => ({ ...ep, fechaUltimoPago: e.target.value }))}
+                          className="flex-1 bg-gray-900 border border-gray-600 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-green-500"
+                        />
+                        <button
+                          onClick={() => setEditPago(ep => ({ ...ep, fechaUltimoPago: new Date().toISOString().slice(0,10) }))}
+                          className="text-xs px-2 py-1.5 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg hover:bg-green-500/40 font-semibold"
+                        >Hoy</button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => guardarFechaPago(p.id, editPago.fechaUltimoPago)}
+                          className="flex-1 py-1.5 rounded-lg bg-green-500 text-black font-bold text-xs hover:bg-green-400"
+                        >✓ Guardar pago</button>
+                        <button
+                          onClick={() => guardarFechaPago(p.id, '')}
+                          className="flex-1 py-1.5 rounded-lg bg-red-500/20 text-red-400 font-semibold text-xs hover:bg-red-500/40"
+                        >✕ Quitar pago</button>
+                      </div>
+                    </div>
                   )}
                 </div>
               );

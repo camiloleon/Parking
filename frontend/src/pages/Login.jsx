@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { login } from "../store";
+// login is now async (Firebase)
 
 export default function Login({ onLogin }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
 
-  function intentar(e) {
+  async function intentar(e) {
     e.preventDefault();
-    if (login(pin)) {
+    if (await login(pin)) {
       onLogin();
     } else {
       setError(true);
@@ -24,7 +25,7 @@ export default function Login({ onLogin }) {
       >
         <div className="text-center">
           <div className="text-4xl mb-2">🅿️</div>
-          <h1 className="text-xl font-bold text-white tracking-widest">ParkControl</h1>
+          <h1 className="text-xl font-bold text-white tracking-widest">ParkSanJoseph</h1>
           <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider">Panel Administrativo</p>
         </div>
 

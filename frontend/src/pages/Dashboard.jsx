@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+﻿import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getPuestosActualizados, updatePuesto, TARIFAS, logout } from "../store";
 
@@ -14,8 +14,13 @@ function fmt(n) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [puestos, setPuestos] = useState(() => getPuestosActualizados());
+  const [puestos, setPuestos] = useState([]);
+  const [cargando, setCargando] = useState(true);
   const [editando, setEditando] = useState(null);
+
+  useEffect(() => {
+    getPuestosActualizados().then(p => { setPuestos(p); setCargando(false); });
+  }, []);
 
   function abrir(p) {
     setEditando({ ...p });
@@ -29,12 +34,12 @@ export default function Dashboard() {
     setEditando(ed => ({ ...ed, duracion, precio: TARIFAS[ed.tipo][duracion] }));
   }
 
-  function guardar() {
+  async function guardar() {
     // Estado automático: si tiene nombre+placa -> ocupado; si está vacío -> libre
     const tieneCliente = editando.nombre.trim() || editando.placa.trim();
     const estadoAuto = tieneCliente ? 'ocupado' : 'libre';
 
-    const nuevos = updatePuesto(editando.id, {
+    await updatePuesto(editando.id, {
       estado:      estadoAuto,
       nombre:      editando.nombre,
       cedula:      editando.cedula,
@@ -50,6 +55,7 @@ export default function Dashboard() {
       pagado:      tieneCliente ? !!editando.fechaUltimoPago : false,
       historialPagos: tieneCliente ? editando.historialPagos : [],
     });
+    const nuevos = await getPuestosActualizados();
     setPuestos(nuevos);
     setEditando(null);
   }
@@ -77,7 +83,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-950 p-4">
       <div className="flex items-center justify-between max-w-2xl mx-auto mb-6">
         <h1 className="text-xl font-bold text-white">
-           ParkControl <span className="text-green-400">Admin</span>
+           ParkSanJoseph <span className="text-green-400">Admin</span>
         </h1>
         <div className="flex gap-2">
           <button
@@ -96,7 +102,9 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-4 gap-3 max-w-2xl mx-auto">
-        {puestos.map(p => (
+        {cargando ? (
+          <div className="col-span-4 text-center py-12 text-gray-500">Cargando puestos...</div>
+        ) : puestos.map(p => (
           <button
             key={p.id}
             onClick={() => abrir(p)}
@@ -191,7 +199,16 @@ export default function Dashboard() {
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Fecha inicio contrato</p>
               <input type="date" value={editando.fechaInicio}
-                onChange={e => setEditando(ed => ({ ...ed, fechaInicio: e.target.value }))}
+                onChange={e => {
+                  const fecha = e.target.value;
+                  setEditando(ed => ({
+                    ...ed,
+                    fechaInicio: fecha,
+                    // Si no hay pago registrado, el primer pago por adelantado es en la fecha de inicio
+                    fechaUltimoPago: ed.fechaUltimoPago ? ed.fechaUltimoPago : fecha,
+                    pagado: ed.fechaUltimoPago ? ed.pagado : !!fecha,
+                  }));
+                }}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-green-500"
               />
             </div>
@@ -199,7 +216,7 @@ export default function Dashboard() {
             {/* Gestión de pago */}
             {editando.nombre && (
               <div className="bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-3 flex flex-col gap-2">
-                <p className="text-xs text-gray-500 uppercase tracking-widest">Úcimo pago registrado</p>
+                <p className="text-xs text-gray-500 uppercase tracking-widest">Fecha en que recibiste el último pago</p>
                 <div className="flex gap-2 items-center">
                   <input type="date" value={editando.fechaUltimoPago || ''}
                     onChange={e => setEditando(ed => ({
@@ -220,7 +237,7 @@ export default function Dashboard() {
                     Hoy
                   </button>
                 </div>
-                <p className="text-[10px] text-gray-600">Deja vacío si aún no ha pagado. Al guardar se recalcula el estado automáticamente.</p>
+                <p className="text-[10px] text-gray-600">⚠ Registra la fecha en que <strong>realmente recibiste</strong> el pago — no necesariamente hoy. Para pago inicial al arranque del contrato, usa la fecha de inicio.</p>
               </div>
             )}
 
@@ -263,7 +280,7 @@ export default function Dashboard() {
                   <button onClick={() => {
                     const codigo = editando.cedula.replace(/\D/g,'').slice(-4);
                     const msg = [
-                      `🅿️ *ParkControl — Puesto ${String(editando.numero).padStart(2,'0')}*`,
+                      `🅿️ *ParkSanJoseph — Puesto ${String(editando.numero).padStart(2,'0')}*`,
                       `\nHola ${editando.nombre},`,
                       `Ya puedes consultar tu puesto en:`,
                       `${linkAcceso}`,
