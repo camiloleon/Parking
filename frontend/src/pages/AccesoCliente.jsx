@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+﻿import { useState, useEffect } from "react";
 import { buscarPorPlacaYCodigo, calcularVencimiento, reportarNovedad } from "../store";
 
 function fmt(n) {
@@ -20,13 +20,11 @@ export default function AccesoCliente() {
   const [modalNovedad, setModalNovedad] = useState(false);
   const [novedad, setNovedad] = useState({ tipo: "otro", descripcion: "" });
   const [novedadOk, setNovedadOk] = useState(false);
-  const [mostrarCanny, setMostrarCanny] = useState(false);
-  const [mostrarVimtag, setMostrarVimtag] = useState(false);
-  const [vimtagError, setVimtagError] = useState(false);
+  const [camaraTab, setCamaraTab] = useState("vimtag");
 
-  async function buscar(e) {
+  function buscar(e) {
     e.preventDefault();
-    const resultado = await buscarPorPlacaYCodigo(placa, codigo);
+    const resultado = buscarPorPlacaYCodigo(placa, codigo);
     setBuscado(true);
     if (resultado && resultado.estado !== "libre") {
       setPuesto(resultado);
@@ -43,13 +41,12 @@ export default function AccesoCliente() {
     setBuscado(false);
     setPlaca("");
     setCodigo("");
-    setMostrarCanny(false);
   }
 
-  async function enviarNovedad(e) {
+  function enviarNovedad(e) {
     e.preventDefault();
     if (!novedad.descripcion.trim()) return;
-    await reportarNovedad({
+    reportarNovedad({
       puesto: puesto.numero,
       placa: puesto.placa,
       nombre: puesto.nombre,
@@ -67,7 +64,7 @@ export default function AccesoCliente() {
   // --- Vista de datos del cliente ---
   if (puesto) {
     const alDia = puesto.pagado === true;
-    const venc = calcularVencimiento(puesto.fechaInicio, puesto.duracion, puesto.pagado, puesto.fechaUltimoPago || null);
+    const venc = calcularVencimiento(puesto.fechaInicio, puesto.duracion, puesto.fechaUltimoPago || null);
     const diasRestantes = venc?.diasRestantes ?? null;
 
     return (
@@ -77,32 +74,23 @@ export default function AccesoCliente() {
             alDia ? "border-green-500/40 bg-green-950/10" : "border-red-500/40 bg-red-950/10"
           }`}>
 
-            {/* Header con boton cerrar */}
-            <div className="flex items-start justify-between">
-              <div className="flex-1 text-center">
-                <p className="text-xs text-gray-500 uppercase tracking-widest">Puesto</p>
-                <p className="text-7xl font-black text-white leading-none">{String(puesto.numero).padStart(2,"0")}</p>
-                <p className="text-gray-300 font-semibold mt-1">{puesto.nombre}</p>
-              </div>
-              <button
-                onClick={volver}
-                className="ml-2 mt-1 shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-white transition-colors text-sm"
-                title="Cerrar sesion"
-              >
-                x
-              </button>
+            {/* Header */}
+            <div className="text-center">
+              <p className="text-xs text-gray-500 uppercase tracking-widest">Puesto</p>
+              <p className="text-7xl font-black text-white leading-none">{String(puesto.numero).padStart(2,"0")}</p>
+              <p className="text-gray-300 font-semibold mt-1">{puesto.nombre}</p>
             </div>
 
-            {/* Datos del vehiculo */}
+            {/* Datos del vehículo */}
             <div className="bg-gray-800/50 rounded-xl p-4 flex flex-col gap-2 text-sm">
-              <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Vehiculo</p>
+              <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Vehículo</p>
               <div className="flex justify-between">
                 <span className="text-gray-500">Placa</span>
                 <span className="text-white font-mono font-bold">{puesto.placa}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Tipo</span>
-                <span className="text-white">{puesto.tipo === "camioneta" ? "Camioneta" : "Automovil"}</span>
+                <span className="text-white">{puesto.tipo === "camioneta" ? " Camioneta" : " Automóvil"}</span>
               </div>
               {puesto.color && (
                 <div className="flex justify-between">
@@ -121,7 +109,7 @@ export default function AccesoCliente() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Modalidad</span>
-                <span className="text-white">{puesto.duracion === "mes" ? "Mensual" : "Por dia"}</span>
+                <span className="text-white">{puesto.duracion === "mes" ? "Mensual" : "Por día"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Valor</span>
@@ -132,43 +120,36 @@ export default function AccesoCliente() {
             {/* Countdown vencimiento */}
             {venc && (
               <div className={`rounded-xl px-4 py-4 text-center border ${
-                !alDia && venc.diasMora > 0
+                venc.vencido || diasRestantes === 0
                   ? "bg-red-500/10 border-red-500/40"
-                  : !alDia && venc.diasMora === 0
-                  ? "bg-yellow-500/10 border-yellow-500/40"
-                  : diasRestantes !== null && diasRestantes <= 5
+                  : diasRestantes <= 5
                   ? "bg-yellow-500/10 border-yellow-500/40"
                   : "bg-gray-800/50 border-gray-700"
               }`}>
-                {!alDia && venc.diasMora > 0 ? (
+                {venc.vencido ? (
                   <>
-                    <p className="text-red-400 text-2xl font-black">Mora</p>
-                    <p className="text-red-300 text-4xl font-black mt-1">{venc.diasMora}</p>
-                    <p className="text-red-400 text-sm font-semibold">{venc.diasMora === 1 ? "dia sin pagar" : "dias sin pagar"}</p>
-                    <p className="text-red-400/70 text-xs mt-1">
-                      Vencio el {venc.anclaActual.toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" })}
+                    <p className="text-red-400 text-2xl font-black"> VENCIDO</p>
+                    <p className="text-red-400/80 text-xs mt-1">
+                      Venció el {venc.fechaPago.toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" })}
                     </p>
                   </>
-                ) : !alDia && venc.diasMora === 0 ? (
+                ) : diasRestantes === 0 ? (
                   <>
-                    <p className="text-yellow-400 text-lg font-black">Vence HOY</p>
+                    <p className="text-red-400 text-lg font-black"> Vence HOY</p>
                     <p className="text-gray-500 text-xs mt-1">Realiza tu pago antes de medianoche.</p>
                   </>
                 ) : (
                   <>
-                    <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Proximo pago</p>
-                    <p className={`text-4xl font-black ${diasRestantes !== null && diasRestantes <= 5 ? "text-yellow-400" : "text-white"}`}>
+                    <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Próximo pago</p>
+                    <p className={`text-4xl font-black ${diasRestantes <= 5 ? "text-yellow-400" : "text-white"}`}>
                       {diasRestantes}
                     </p>
-                    <p className={`text-sm font-semibold ${diasRestantes !== null && diasRestantes <= 5 ? "text-yellow-400" : "text-gray-400"}`}>
-                      {diasRestantes === 1 ? "dia restante" : "dias restantes"}
+                    <p className={`text-sm font-semibold ${diasRestantes <= 5 ? "text-yellow-400" : "text-gray-400"}`}>
+                      {diasRestantes === 1 ? "día restante" : "días restantes"}
                     </p>
                     <p className="text-[10px] text-gray-600 mt-1">
                       {venc.fechaPago.toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" })}
                     </p>
-                    {venc.diasTarde > 0 && (
-                      <p className="text-yellow-600 text-[10px] mt-1">Ultimo pago recibido {venc.diasTarde} {venc.diasTarde === 1 ? "dia" : "dias"} tarde</p>
-                    )}
                   </>
                 )}
               </div>
@@ -177,142 +158,124 @@ export default function AccesoCliente() {
             {/* Estado pago */}
             {alDia ? (
               <div className="rounded-xl px-4 py-3 text-center bg-green-500/10 border border-green-500/20 text-green-400">
-                <p className="font-bold">Pago al dia</p>
+                <p className="font-bold"> Pago al día</p>
               </div>
             ) : (
               <div className="rounded-xl px-4 py-3 text-center bg-red-500/10 border border-red-500/20 text-red-400">
-                <p className="font-bold">Pago pendiente</p>
-                <p className="text-xs text-gray-500 mt-1">Comunicate con el administrador.</p>
+                <p className="font-bold"> Pago pendiente</p>
+                <p className="text-xs text-gray-500 mt-1">Comunícate con el administrador.</p>
               </div>
             )}
 
-            {/* Camara / QR */}
+            {/* Cámara QR — Vimtag y Canny Cam */}
             {puesto.camara ? (
               <div className="bg-gray-800/50 rounded-xl p-4 flex flex-col items-center gap-3">
-                <p className="text-xs text-gray-500 uppercase tracking-widest">Ver mi camara</p>
+                <p className="text-xs text-gray-500 uppercase tracking-widest">Ver mi cámara</p>
 
-                {/* QR */}
-                <div className="bg-white rounded-xl p-2 shadow-lg">
-                  <img src={puesto.camara} alt="QR camara" className="w-40 h-40 object-contain" />
+                {/* QR grande */}
+                <div className="bg-white rounded-2xl p-3 shadow-lg">
+                  <img src={puesto.camara} alt="QR cámara" className="w-48 h-48 object-contain" />
+                </div>
+                <p className="text-[11px] text-gray-500 text-center -mt-1">Escanea este QR con la app de tu preferencia</p>
+
+                {/* Tabs */}
+                <div className="flex w-full gap-1 bg-gray-900 rounded-xl p-1">
+                  <button
+                    onClick={() => setCamaraTab("vimtag")}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${camaraTab === "vimtag" ? "bg-blue-500 text-white" : "text-gray-400 hover:text-white"}`}
+                  >
+                    🌐 Vimtag
+                  </button>
+                  <button
+                    onClick={() => setCamaraTab("canny")}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${camaraTab === "canny" ? "bg-green-500 text-black" : "text-gray-400 hover:text-white"}`}
+                  >
+                    📱 Canny Cam
+                  </button>
                 </div>
 
-                {/* Opcion 1 — ver en web (modal pantalla completa) */}
-                <button
-                  onClick={() => { setMostrarVimtag(true); setVimtagError(false); }}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600/20 border border-blue-500/30 text-blue-300 rounded-xl text-sm font-semibold hover:bg-blue-600/40 transition-colors"
-                >
-                  Ver camara desde el navegador
-                </button>
-
-                {/* Opcion 2  instrucciones Canny Cam (colapsable) */}
-                <button
-                  onClick={() => setMostrarCanny(v => !v)}
-                  className="w-full flex items-center justify-between px-3 py-2 bg-gray-900/70 border border-gray-700 rounded-xl text-xs text-gray-400 hover:text-gray-200 transition-colors"
-                >
-                  <span>Ver desde la app Canny Cam (instrucciones)</span>
-                  <span className="text-gray-600 ml-2">{mostrarCanny ? "" : ""}</span>
-                </button>
-
-                {mostrarCanny && (
-                  <div className="w-full bg-gray-900/60 rounded-xl p-3 flex flex-col gap-2 text-xs border border-gray-700">
-                    <ol className="text-gray-300 flex flex-col gap-2 list-decimal list-inside">
-                      <li>
-                        Descarga la app <span className="text-white font-semibold">Canny Cam</span>
-                        <div className="flex gap-2 mt-1 ml-4">
-                          <a href="https://play.google.com/store/search?q=canny+cam" target="_blank" rel="noopener noreferrer"
-                            className="px-2 py-1 bg-green-700/40 text-green-300 rounded-lg hover:bg-green-700/60">
-                            Google Play
-                          </a>
-                          <a href="https://apps.apple.com/search?term=canny+cam" target="_blank" rel="noopener noreferrer"
-                            className="px-2 py-1 bg-blue-700/40 text-blue-300 rounded-lg hover:bg-blue-700/60">
-                            App Store
-                          </a>
-                        </div>
-                      </li>
-                      <li>Abre la app y toca <span className="text-white font-semibold">"Agregar camara"</span></li>
-                      <li>Selecciona <span className="text-white font-semibold">"Escanear QR"</span> y apunta al codigo de arriba</li>
-                      <li>La camara aparecera automaticamente en tu lista</li>
-                      <li>Tocala para ver la imagen <span className="text-white font-semibold">en tiempo real</span></li>
-                    </ol>
-                    <button
-                      onClick={() => setMostrarCanny(false)}
-                      className="mt-1 text-[10px] text-gray-600 hover:text-gray-400 text-center"
+                {/* Tab Vimtag */}
+                {camaraTab === "vimtag" && (
+                  <div className="w-full bg-gray-900/70 rounded-xl p-3 flex flex-col gap-3 text-xs">
+                    <p className="text-blue-400 font-bold text-center text-sm">🌐 Ver con Vimtag</p>
+                    <p className="text-gray-400 text-center text-[11px]">Accede desde el navegador o la app oficial Vimtag.</p>
+                    <a
+                      href="https://www.vimtag.com/device?hl=en"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600/30 border border-blue-500/40 text-blue-300 rounded-lg font-semibold hover:bg-blue-600/50 transition-colors"
                     >
-                      Cerrar instrucciones
-                    </button>
+                      🌐 Abrir Vimtag en el navegador
+                    </a>
+                    <p className="text-gray-500 text-[11px] text-center">O descarga la app oficial:</p>
+                    <div className="flex gap-2">
+                      <a href="https://play.google.com/store/search?q=vimtag" target="_blank" rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center py-2 bg-green-700/30 text-green-300 rounded-lg text-[11px] font-semibold hover:bg-green-700/50">
+                        ▶ Google Play
+                      </a>
+                      <a href="https://apps.apple.com/search?term=vimtag" target="_blank" rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center py-2 bg-gray-700/50 text-gray-300 rounded-lg text-[11px] font-semibold hover:bg-gray-700/70">
+                         App Store
+                      </a>
+                    </div>
+                    <ol className="text-gray-400 flex flex-col gap-1.5 list-decimal list-inside mt-1">
+                      <li>Crea cuenta gratuita en <span className="text-white">vimtag.com</span></li>
+                      <li>Inicia sesión en la app Vimtag</li>
+                      <li>Toca <span className="text-white">"Agregar dispositivo"</span> y escanea el QR</li>
+                      <li>Verás tu cámara en tiempo real</li>
+                    </ol>
+                  </div>
+                )}
+
+                {/* Tab Canny Cam */}
+                {camaraTab === "canny" && (
+                  <div className="w-full bg-gray-900/70 rounded-xl p-3 flex flex-col gap-3 text-xs">
+                    <p className="text-green-400 font-bold text-center text-sm">📱 Ver con Canny Cam</p>
+                    <p className="text-gray-400 text-center text-[11px]">Compatible con Vimtag y la mayoría de marcas RTSP/IP.</p>
+                    <div className="flex gap-2">
+                      <a href="https://play.google.com/store/search?q=canny+cam" target="_blank" rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center py-2 bg-green-700/30 text-green-300 rounded-lg text-[11px] font-semibold hover:bg-green-700/50">
+                        ▶ Google Play
+                      </a>
+                      <a href="https://apps.apple.com/search?term=canny+cam" target="_blank" rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center py-2 bg-gray-700/50 text-gray-300 rounded-lg text-[11px] font-semibold hover:bg-gray-700/70">
+                         App Store
+                      </a>
+                    </div>
+                    <ol className="text-gray-400 flex flex-col gap-1.5 list-decimal list-inside mt-1">
+                      <li>Descarga <span className="text-white font-semibold">Canny Cam</span></li>
+                      <li>Toca <span className="text-white">"Agregar cámara"</span></li>
+                      <li>Selecciona <span className="text-white">"Escanear QR"</span> y apunta al código de arriba</li>
+                      <li>La cámara aparece en tu lista automáticamente</li>
+                      <li>Tócala para ver en <span className="text-white font-semibold">tiempo real</span></li>
+                    </ol>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="flex items-center justify-center gap-2 bg-gray-800 text-gray-600 font-bold rounded-xl py-3 select-none text-sm">
-                Sin camara asignada
+              <div className="bg-gray-800/40 border border-gray-700/40 rounded-xl p-4 flex flex-col items-center gap-1 text-center">
+                <p className="text-gray-500 text-sm font-semibold"> Sin QR de cámara</p>
+                <p className="text-gray-600 text-xs">El administrador aún no ha configurado la cámara para este puesto.</p>
               </div>
             )}
 
-            {/* Botones inferiores: Cerrar y Reportar novedad */}
-            <div className="flex gap-2 mt-1">
-              <button
-                onClick={volver}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-gray-800 text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition-colors text-sm font-semibold"
-              >
-                Cerrar
-              </button>
+            {/* Botones de acción */}
+            <div className="grid grid-cols-2 gap-3 mt-2">
               <button
                 onClick={() => setModalNovedad(true)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 transition-colors text-sm font-semibold"
+                className="flex items-center justify-center gap-1.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 font-semibold rounded-xl py-3 hover:bg-yellow-500/20 transition-colors text-sm"
               >
-                Reportar novedad
+                 Reportar novedad
+              </button>
+              <button
+                onClick={volver}
+                className="flex items-center justify-center gap-1.5 bg-gray-800 border border-gray-700 text-gray-300 font-semibold rounded-xl py-3 hover:bg-gray-700 transition-colors text-sm"
+              >
+                 Ver otro puesto
               </button>
             </div>
-
           </div>
         </div>
-
-        {/* Modal fullscreen Vimtag */}
-        {mostrarVimtag && (
-          <div className="fixed inset-0 z-50 bg-gray-950 flex flex-col">
-            {/* Barra superior */}
-            <div className="flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-800 shrink-0">
-              <div className="flex flex-col">
-                <span className="text-sm font-bold text-white">Ver mi camara</span>
-                <span className="text-[10px] text-yellow-400">Activa "Sitio de escritorio" en tu navegador si no carga bien</span>
-              </div>
-              <button
-                onClick={() => setMostrarVimtag(false)}
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white text-base font-bold"
-              >
-                x
-              </button>
-            </div>
-
-            {/* Iframe o fallback */}
-            {!vimtagError ? (
-              <iframe
-                src="https://www.vimtag.com/device?hl=en"
-                title="Vimtag camara"
-                className="flex-1 w-full"
-                style={{border: "none"}}
-                allow="camera; fullscreen"
-                onError={() => setVimtagError(true)}
-              />
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
-                <p className="text-gray-400 text-sm text-center">El sitio no permite verse embebido desde este navegador.</p>
-                <a
-                  href="https://www.vimtag.com/device?hl=en"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold"
-                >
-                  Abrir vimtag.com en nueva pestana
-                </a>
-                <button onClick={() => setMostrarVimtag(false)} className="text-xs text-gray-600 hover:text-gray-400">
-                  Volver
-                </button>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Modal reportar novedad */}
         {modalNovedad && (
@@ -320,12 +283,12 @@ export default function AccesoCliente() {
             <form onSubmit={enviarNovedad}
               className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-xs flex flex-col gap-4"
             >
-              <h2 className="text-base font-bold text-white text-center">Reportar novedad</h2>
-              <p className="text-xs text-gray-500 text-center -mt-2">Puesto {puesto.numero} - {puesto.placa}</p>
+              <h2 className="text-base font-bold text-white text-center"> Reportar novedad</h2>
+              <p className="text-xs text-gray-500 text-center -mt-2">Puesto {puesto.numero}  {puesto.placa}</p>
               <div>
                 <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Tipo</p>
                 <div className="flex gap-2">
-                  {[["dano","Dano"],["robo","Robo"],["otro","Otro"]].map(([v,l]) => (
+                  {[["dano"," Daño"],["robo"," Robo"],["otro"," Otro"]].map(([v,l]) => (
                     <button key={v} type="button"
                       onClick={() => setNovedad(n => ({ ...n, tipo: v }))}
                       className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
@@ -339,7 +302,7 @@ export default function AccesoCliente() {
                 onChange={e => setNovedad(n => ({ ...n, descripcion: e.target.value }))}
                 className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-green-500 resize-none"
               />
-              {novedadOk && <p className="text-green-400 text-xs text-center">Novedad enviada al administrador</p>}
+              {novedadOk && <p className="text-green-400 text-xs text-center"> Novedad enviada al administrador</p>}
               <div className="flex gap-2">
                 <button type="button" onClick={() => setModalNovedad(false)}
                   className="flex-1 py-2 rounded-xl bg-gray-800 text-gray-400 text-sm">Cancelar</button>
@@ -353,20 +316,20 @@ export default function AccesoCliente() {
     );
   }
 
-  // --- Pantalla de login ---
+  // --- Pantalla de login por placa + código ---
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-6">
       <div className="w-full max-w-xs flex flex-col gap-6">
 
         <div className="text-center">
-          <p className="text-4xl mb-3">P</p>
-          <h1 className="text-2xl font-black text-white">ParkSanJoseph</h1>
+          <p className="text-4xl mb-3"></p>
+          <h1 className="text-2xl font-black text-white">ParkControl</h1>
           <p className="text-gray-500 text-sm mt-1">Consulta tu puesto de parqueo</p>
         </div>
 
         <form onSubmit={buscar} className="flex flex-col gap-3">
           <div>
-            <label className="text-xs text-gray-500 uppercase tracking-widest block mb-1">Placa del vehiculo</label>
+            <label className="text-xs text-gray-500 uppercase tracking-widest block mb-1">Placa del vehículo</label>
             <input
               value={placa}
               onChange={e => setPlaca(e.target.value.toUpperCase())}
@@ -377,21 +340,21 @@ export default function AccesoCliente() {
           </div>
           <div>
             <label className="text-xs text-gray-500 uppercase tracking-widest block mb-1">
-              Codigo de acceso <span className="normal-case text-gray-600">(ultimos 4 digitos de tu cedula)</span>
+              Código de acceso <span className="normal-case text-gray-600">(últimos 4 dígitos de tu cédula)</span>
             </label>
             <input
               type="password"
               inputMode="numeric"
               maxLength={4}
               value={codigo}
-              onChange={e => setCodigo(e.target.value.replace(/\D/g, ""))}
-              placeholder="..."
+              onChange={e => setCodigo(e.target.value.replace(/\D/g, ''))}
+              placeholder=""
               className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white text-center text-xl tracking-widest placeholder-gray-700 focus:outline-none focus:border-green-500"
             />
           </div>
 
           {buscado && error && (
-            <p className="text-red-400 text-sm text-center">No se encontro ningun puesto con esos datos.</p>
+            <p className="text-red-400 text-sm text-center">No se encontró ningún puesto con esos datos.</p>
           )}
 
           <button type="submit"
@@ -402,14 +365,15 @@ export default function AccesoCliente() {
         </form>
 
         <p className="text-[10px] text-gray-600 text-center">
-          Si no recuerdas tu codigo, contacta al administrador.
+          Si no recuerdas tu código, contacta al administrador.
         </p>
 
+        {/* Disclaimer */}
         <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-4 text-[10px] text-gray-600 flex flex-col gap-1 leading-relaxed">
-          <p className="text-gray-500 font-semibold text-xs mb-1">Aviso de responsabilidad</p>
-          <p>El parqueadero no se hace responsable por danos, perdidas, hurtos o deterioro de los vehiculos ni de los objetos dejados en su interior.</p>
-          <p>Las camaras de vigilancia son de uso exclusivo del propietario del parqueadero para fines de seguridad. Las imagenes son privadas y no seran compartidas con terceros salvo requerimiento legal.</p>
-          <p>Al consultar este portal, el usuario acepta estos terminos.</p>
+          <p className="text-gray-500 font-semibold text-xs mb-1"> Aviso de responsabilidad</p>
+          <p>El parqueadero no se hace responsable por daños, pérdidas, hurtos o deterioro de los vehículos ni de los objetos dejados en su interior.</p>
+          <p>Las cámaras de vigilancia son de uso exclusivo del propietario del parqueadero para fines de seguridad. Las imágenes son privadas y no serán compartidas con terceros salvo requerimiento legal.</p>
+          <p>Al consultar este portal, el usuario acepta estos términos.</p>
         </div>
       </div>
     </div>
